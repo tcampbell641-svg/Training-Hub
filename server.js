@@ -1,4 +1,4 @@
-// The Training Hub 2.2.41 MASTER — Unified Class Management
+// The Training Hub 2.2.42 MASTER — Shared Modular Pre/Post Tests
 // The Training Hub 2.1.69 MASTER — Forced HCE Pre/Post Answer-Key Self-Heal
 // The Training Hub 2.1.49 MASTER — Force Separate 3100 / 4100 Everywhere
 // The Training Hub 2.1.35 — Backup History Cleanup
@@ -8,6 +8,7 @@
 // The Training Hub 2.1.7 — Editable Matched Pre/Post Tests
 import express from 'express';
 import registerUnifiedHub from './unified-hub.cjs';
+import registerSharedTests from './shared-tests.cjs';
 import pg from 'pg';
 import QRCode from 'qrcode';
 import crypto from 'crypto';
@@ -3059,6 +3060,7 @@ app.use('/instructor',(req,res,next)=>{
  const started=Date.now(); res.on('finish',()=>{ if(res.statusCode<500) auditEvent(req,'INSTRUCTOR_CHANGE',`${req.method} /instructor${req.path} · ${res.statusCode} · ${Date.now()-started}ms`,res.statusCode<400?'ok':'blocked'); }); next();
 });
 
+const sharedTests=registerSharedTests({pool,allowedCourseSet,esc});
 const unifiedHub=registerUnifiedHub({app,auth,pool,esc,layout,allowedCourseSet,courseAllowedForSession,isEditorRole,companyProgram,programReportingData,programTree,orderedActiveProgramModules,programCompetition,QRCode,certificateIdentity,certificateMarkup,certNo,formatCertDate});
 
 app.get('/instructor/dashboard',auth,async(req,res)=>{
@@ -5145,8 +5147,9 @@ app.get('/instructor/simulation/:attemptId',auth,async(req,res)=>{
 app.get('/instructor/build-select',auth,async(req,res)=>{
  const q=await pool.query('SELECT id,course,title,code,active FROM classes WHERE company_id=$1 ORDER BY created_at DESC LIMIT 40',[req.account.company_id]);
  const acs=await allowedCourseSet(req.account); const visibleRows=acs?q.rows.filter(c=>acs.has(c.course)):q.rows; const rows=visibleRows.map(c=>`<tr><td><b>${esc(c.course)}</b><br><span class="muted small">${esc(c.title)}</span></td><td>${esc(c.code)}</td><td><span class="pill ${c.active?'open':'closed'}">${c.active?'Open':'Closed'}</span></td><td><a class="btn" href="/instructor/builder/${c.id}">Build Training</a></td></tr>`).join('');
+ const modularTestCatalog=sharedTests.render(await sharedTests.catalog(req.account));
  const unifiedClassPicker=await unifiedHub.picker(req.account,'activities');
- res.send(layout('Build Test', `${unifiedClassPicker}<div class="toolbar no-print"><a class="btn light" href="/instructor/dashboard">← Instructor Home</a></div><div class="card"><div class="big">Build Pre/Post Test</div><p class="muted">Choose the class whose matched Pre-Test / Post-Test question bank you want to edit.</p><div style="overflow:auto"><table><tr><th>Course</th><th>Code</th><th>Status</th><th></th></tr>${rows||'<tr><td colspan="4">No classes yet. Start a class first.</td></tr>'}</table></div></div>`));
+ res.send(layout('Build Test', `${modularTestCatalog}${unifiedClassPicker}<div class="toolbar no-print"><a class="btn light" href="/instructor/dashboard">← Instructor Home</a></div><div class="card"><div class="big">Build Pre/Post Test</div><p class="muted">Choose the class whose matched Pre-Test / Post-Test question bank you want to edit.</p><div style="overflow:auto"><table><tr><th>Course</th><th>Code</th><th>Status</th><th></th></tr>${rows||'<tr><td colspan="4">No classes yet. Start a class first.</td></tr>'}</table></div></div>`));
 });
 
 
